@@ -27,14 +27,29 @@ public class RE_commercialService {
 
     @Transactional(readOnly = true)
     public DashboardStats getDashboardData(Utilisateur utilisateur, String structure, LocalDateTime startDate) {
+        Profil profil = utilisateur.getProfil();
+        if (profil == null) return new DashboardStats();
 
+        // استخراج الصلاحيات (نفس المنطق المستعمل في getClientsForUser)
+        String effectiveStructure = extractStructure(utilisateur);
         List<String> agencyCodes = extractAgencyCodes(utilisateur);
         List<String> zoneCodes = extractZoneCodes(utilisateur);
         List<String> regionCodes = extractRegionCodes(utilisateur);
-        String effectiveStructure = extractStructure(utilisateur);
 
+        // إضافة فلاتر النشاط والسوق والقطاع لضمان أن الإحصائيات تشمل الـ 4 عملاء فقط
+        List<String> activityCodes = (profil.getActivite() == 1 && utilisateur.getActivites() != null) ?
+                utilisateur.getActivites().stream().map(Activite::getCode).toList() : null;
+        List<String> marcheCodes = (profil.getMarche() == 1 && utilisateur.getMarches() != null) ?
+                utilisateur.getMarches().stream().map(Marche::getCode).toList() : null;
+        List<String> segmentCodes = (profil.getSegment() == 1 && utilisateur.getSegments() != null) ?
+                utilisateur.getSegments().stream().map(Segment::getCode).toList() : null;
+        List<String> businessCenterCodes = (profil.getCentreAffaire() == 1 && utilisateur.getCentreAffaires() != null) ?
+                utilisateur.getCentreAffaires().stream().map(CentreAffaire::getCode).toList() : null;
+
+        // تمرير كافة المعايير لـ getDashboardGlobalStats لضمان دقة الأرقام
         DashboardStats stats = clientRepository.getDashboardGlobalStats(
-                agencyCodes, zoneCodes, regionCodes, null, null, null, null,
+                agencyCodes, zoneCodes, regionCodes,
+                activityCodes, marcheCodes, segmentCodes, businessCenterCodes,
                 null, null, effectiveStructure, null, null, null, startDate
         );
 

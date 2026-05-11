@@ -99,7 +99,7 @@ public class Report {
     private Integer scheduleNumber;
 
     // ✅ CHAMP AJOUTÉ : Date d'engagement (obligatoire pour Promesse et Facilité)
-    @Column(name = "ENGAGEMENT_DATE", nullable = false)
+    @Column(name = "ENGAGEMENT_DATE", nullable = true) // لازم تكون true
     private String engagementDate;
 
     @OneToMany(mappedBy = "report", cascade = CascadeType.ALL, orphanRemoval = true)

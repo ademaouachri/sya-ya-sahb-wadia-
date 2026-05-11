@@ -1,5 +1,6 @@
 package com.example.backend.Service;
 
+import com.example.backend.DTO.ReportDTO;
 import com.example.backend.Model.PaymentStatus;
 import com.example.backend.Model.Report;
 import com.example.backend.Repository.ReportRepository;
@@ -9,8 +10,11 @@ import org.springframework.web.client.RestTemplate;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class ReportService {
@@ -23,97 +27,116 @@ public class ReportService {
     }
 
     /**
-     * جلب كل التقارير مع تحديث الحالة أوتوماتيكياً بناءً على بيانات البنك والتواريخ
+     * جلب كافة التقارير وتحويلها لـ DTO مع التزامن مع البنك
      */
-    public List<Report> getAllReportsWithAutoCheck() {
+    public List<ReportDTO> getAllReportsWithAutoCheck() {
         List<Report> reports = reportRepository.findAll();
-
-        for (Report report : reports) {
-            try {
-                // الاتصال بـ API البنك (تأكد أن البورت هو 8082 لمشروع البنك)
-                String bankUrl = "http://localhost:8083/api/bank/total-paid?cli=" + report.getCli();
-                Double totalPaidInBank = restTemplate.getForObject(bankUrl, Double.class);
-
-                if (totalPaidInBank != null) {
-                    report.setPaidAmount(totalPaidInBank);
-                }
-
-                // تطبيق المنطق الذكي لتحديث الحالة
-                updatePaymentStatusBasedOnDate(report);
-
-            } catch (Exception e) {
-                System.err.println("Erreur API Banque pour CLI " + report.getCli() + ": " + e.getMessage());
-                updatePaymentStatusBasedOnDate(report);
-            }
-        }
-        return reports;
+        return reports.stream()
+                .map(this::processAndConvertToDTO)
+                .collect(Collectors.toList());
     }
 
     /**
-     * المنطق الذكي لتحديد حالة الخلاص:
-     * - PAYE: إذا تم دفع كامل المبلغ.
-     * - EN_RETARD: إذا فات التاريخ في (Promesse) أو لم يتم دفع القسط الأول في (Facilité).
-     * - PARTIEL: إذا تم دفع جزء يغطي القسط المطلوب في حال كانت التسهيلات مفعلة.
+     * تحويل الـ Entity إلى DTO وجلب بيانات البنك (المبلغ + تاريخ آخر دفع)
+     */
+    private ReportDTO processAndConvertToDTO(Report report) {
+        String lastPaymentDateFromBank = null;
+
+        // 1. جلب البيانات من Bank API
+        try {
+            String bankUrl = "http://localhost:8083/api/bank/status?cli=" + report.getCli();
+            Map<String, Object> bankResponse = restTemplate.getForObject(bankUrl, Map.class);
+
+            if (bankResponse != null) {
+                // تحديث المبلغ المدفوع
+                Double totalPaid = (bankResponse.get("totalPaid") != null) ?
+                        Double.valueOf(bankResponse.get("totalPaid").toString()) : 0.0;
+                report.setPaidAmount(totalPaid);
+
+                // جلب تاريخ آخر عملية خلاص
+                if (bankResponse.get("lastPaymentDate") != null) {
+                    lastPaymentDateFromBank = bankResponse.get("lastPaymentDate").toString();
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Bank API Offline or CLI not found: " + report.getCli());
+            report.setPaidAmount(0.0);
+        }
+
+        // 2. تحديث حالة التقرير بناءً على المعطيات الجديدة
+        updatePaymentStatusBasedOnDate(report);
+
+        // 3. بناء الـ DTO
+        ReportDTO dto = new ReportDTO();
+        dto.setId(report.getId());
+        dto.setCli(report.getCli());
+        dto.setPoint(report.getPoint());
+
+        double total = (report.getAmount() != null) ? report.getAmount() : 0.0;
+        double paid = (report.getPaidAmount() != null) ? report.getPaidAmount() : 0.0;
+
+        dto.setTotalAmount(total);
+        dto.setPaidAmount(paid);
+        dto.setRemainingAmount(total - paid);
+        dto.setEngagementDate(report.getEngagementDate());
+        dto.setLastPaymentDate(lastPaymentDateFromBank);
+
+        if (report.getEngagementDate() != null && !report.getEngagementDate().isEmpty()) {
+            dto.setDaysDiff(calculateDaysDifference(report.getEngagementDate()));
+        } else {
+            dto.setDaysDiff(0);
+        }
+
+        dto.setStatus(report.getStatus());
+        dto.setObservation(report.getObservation());
+
+        return dto;
+    }
+
+    /**
+     * تحديث حالة الخلاص
      */
     private void updatePaymentStatusBasedOnDate(Report report) {
         double paid = (report.getPaidAmount() != null) ? report.getPaidAmount() : 0.0;
         double total = (report.getAmount() != null) ? report.getAmount() : 0.0;
-        boolean isPastDate = report.getEngagementDate() != null && isPastDate(report.getEngagementDate());
 
-        // 1. الخلاص الكامل ديما PAYE
-        if (paid >= total && total > 0) {
+        if (total > 0 && paid >= total) {
             report.setStatus(PaymentStatus.PAYE);
             return;
         }
 
-        // 2. إذا فات التاريخ (isPastDate == true)
-        if (isPastDate) {
-            if ("Promesse de règlement".equals(report.getPoint())) {
-                // في الوعد: أي نقص عن المبلغ الكامل في التاريخ المحدد يعتبر تأخير
-                report.setStatus(PaymentStatus.EN_RETARD);
-            }
-            else if ("Facilité de paiement".equals(report.getPoint())) {
-                // في التقسيط: نحسب قيمة القسط الواحد (المبلغ الجملي / عدد الأقساط)
-                int nbEcheances = (report.getScheduleNumber() != null && report.getScheduleNumber() > 0)
-                        ? report.getScheduleNumber() : 1;
-                double amountPerEcheance = total / nbEcheances;
-
-                // إذا صب على الأقل قيمة قسط واحد، نعتبروه PARTIEL موش متأخر
-                if (paid >= amountPerEcheance) {
-                    report.setStatus(PaymentStatus.PARTIEL);
-                } else {
-                    report.setStatus(PaymentStatus.EN_RETARD);
-                }
-            } else {
-                // حالات أخرى
-                report.setStatus(PaymentStatus.EN_RETARD);
-            }
+        if (report.getEngagementDate() == null || report.getEngagementDate().isEmpty()) {
+            report.setStatus(paid > 0 ? PaymentStatus.PARTIEL : PaymentStatus.NON_PAYE);
+            return;
         }
-        // 3. إذا مازال ما فاتش التاريخ
-        else {
-            if (paid > 0) {
-                report.setStatus(PaymentStatus.PARTIEL);
+
+        boolean isPast = isPastDate(report.getEngagementDate());
+        if (isPast) {
+            if ("Facilité de paiement".equals(report.getPoint())) {
+                int nb = (report.getScheduleNumber() != null && report.getScheduleNumber() > 0) ? report.getScheduleNumber() : 1;
+                if (paid >= (total / nb)) report.setStatus(PaymentStatus.PARTIEL);
+                else report.setStatus(PaymentStatus.EN_RETARD);
             } else {
-                report.setStatus(PaymentStatus.NON_PAYE);
+                report.setStatus(PaymentStatus.EN_RETARD);
             }
+        } else {
+            report.setStatus(paid > 0 ? PaymentStatus.PARTIEL : PaymentStatus.NON_PAYE);
         }
     }
 
-    /**
-     * التحقق من التاريخ (مقارنة تاريخ التقرير مع تاريخ اليوم)
-     */
-    public boolean isPastDate(String dateStr) {
+    public long calculateDaysDifference(String dateStr) {
         try {
-            // التنسيق المعتمد yyyy-MM-dd (تأكد أنه نفس التنسيق القادم من Angular)
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-            LocalDate estimationDate = LocalDate.parse(dateStr, formatter);
-            return estimationDate.isBefore(LocalDate.now());
-        } catch (Exception e) {
-            return false;
-        }
+            LocalDate engDate = LocalDate.parse(dateStr, formatter);
+            return ChronoUnit.DAYS.between(LocalDate.now(), engDate);
+        } catch (Exception e) { return 0; }
     }
 
-    // --- ميثودات CRUD الأساسية ---
+    public boolean isPastDate(String dateStr) {
+        return calculateDaysDifference(dateStr) < 0;
+    }
+
+    // --- CRUD الأساسي ---
 
     public Report saveReport(Report report) {
         if (report.getCreationDate() == null) {
@@ -124,16 +147,17 @@ public class ReportService {
         return reportRepository.save(report);
     }
 
-    public List<Report> getAllReports() {
-        return reportRepository.findAll();
-    }
-
+    // هذه الميثود هي التي كانت ناقصة وتسببت في خطأ الـ Controller
     public Report getReportById(UUID id) {
         return reportRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Report introuvable"));
+                .orElseThrow(() -> new RuntimeException("Report introuvable avec l'ID: " + id));
     }
 
     public void deleteReport(UUID id) {
         reportRepository.deleteById(id);
+    }
+
+    public List<Report> getAllReports() {
+        return reportRepository.findAll();
     }
 }
