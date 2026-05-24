@@ -94,9 +94,17 @@ public class Report {
 
     @Column(name = "PAID_AMOUNT")
     private Double paidAmount;
+    @Column(name = "montant_depassement")
+    private Double montantDepassement;
 
     @Column(name = "SCHEDULE_NUMBER")
     private Integer scheduleNumber;
+
+
+    @Column(name = "date_d'estination")
+    private LocalDateTime date_destination;
+
+
 
     // ✅ CHAMP AJOUTÉ : Date d'engagement (obligatoire pour Promesse et Facilité)
     @Column(name = "ENGAGEMENT_DATE", nullable = true) // لازم تكون true

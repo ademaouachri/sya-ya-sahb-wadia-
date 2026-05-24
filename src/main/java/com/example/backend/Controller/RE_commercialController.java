@@ -14,7 +14,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/re-commercial")
-@CrossOrigin(origins = "*") // مهم جداً للتعامل مع Angular
+@CrossOrigin(origins = "*")
 public class RE_commercialController {
 
     private final RE_commercialService reCommercialService;
@@ -23,24 +23,15 @@ public class RE_commercialController {
         this.reCommercialService = reCommercialService;
     }
 
-    /**
-     * ميثود الـ Dashboard
-     * URL: GET http://localhost:8080/re-commercial/dashboard
-     */
     @GetMapping("/dashboard")
     public ResponseEntity<DashboardStats> getDashboardStats(
             @AuthenticationPrincipal Utilisateur utilisateur,
             @RequestParam(required = false) String structure,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate
     ) {
-        DashboardStats stats = reCommercialService.getDashboardData(utilisateur, structure, startDate);
-        return ResponseEntity.ok(stats);
+        return ResponseEntity.ok(reCommercialService.getDashboardData(utilisateur, structure, startDate));
     }
 
-    /**
-     * ميثود قائمة العملاء
-     * URL: GET http://localhost:8080/re-commercial/clients
-     */
     @GetMapping("/clients")
     public ResponseEntity<List<Client>> getClients(
             @AuthenticationPrincipal Utilisateur utilisateur,
@@ -52,7 +43,7 @@ public class RE_commercialController {
             @RequestParam(required = false) String zoneCode,
             @RequestParam(required = false) String regionCode,
             @RequestParam(required = false) String postalCode,
-            @RequestParam(required = false) String dossierType,
+            @RequestParam(required = false) String isCloture,
             @RequestParam(required = false) String structure,
             @RequestParam(required = false) String fullName,
             @RequestParam(required = false) String clientGroup,
@@ -61,27 +52,11 @@ public class RE_commercialController {
             @RequestParam(defaultValue = "totalImpayeAmount") String sortBy,
             @RequestParam(defaultValue = "desc") String sortDir
     ) {
-
         List<Client> clients = reCommercialService.getClientsForUser(
-                utilisateur,
-                agencyCode,
-                activityCode,
-                marcheCode,
-                segmentCode,
-                businessCenterCode,
-                zoneCode,
-                regionCode,
-                postalCode,
-                dossierType,
-                structure,
-                fullName,
-                clientGroup,
-                createdBy,
-                startDate,
-                sortBy,
-                sortDir
+                utilisateur, agencyCode, activityCode, marcheCode, segmentCode,
+                businessCenterCode, zoneCode, regionCode, postalCode, isCloture,
+                structure, fullName, clientGroup, createdBy, startDate, sortBy, sortDir
         );
-
         return ResponseEntity.ok(clients);
     }
 }

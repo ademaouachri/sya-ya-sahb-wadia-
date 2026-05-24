@@ -28,7 +28,7 @@ public class ExcelImportService {
 
     private final ClientRepository repository;
     private final ImportErrorLogRepository errorLogRepository;
-    private final ParameterService parameterService; // ✅ تم إضافة السيرفيس
+    private final ParameterService parameterService;
     private final DataFormatter dataFormatter = new DataFormatter();
 
     @Transactional
@@ -38,10 +38,8 @@ public class ExcelImportService {
         int rowNum = 0;
         String fileName = file.getOriginalFilename();
 
-        // حذف الأخطاء القديمة
         errorLogRepository.deleteByFileName(fileName);
 
-        // 1. جلب البارامترات مرة واحدة للسرعة
         Parameter amiableIMP = parameterService.getByCodeAndType("phase amiable", "IMP");
         Parameter amiableSDB = parameterService.getByCodeAndType("phase amiable", "SDB");
         Parameter commIMP = parameterService.getByCodeAndType("phase commerciale", "IMP");
@@ -55,7 +53,7 @@ public class ExcelImportService {
                 if (rowNum == 1 || isRowEmpty(row)) continue;
 
                 try {
-                    // 2. قراءة البيانات للـ Validation الصارم (نفس منطقك)
+                    // 1. استخراج الحقول للتحقق من إجباريتها
                     String cli = getCellValue(row, 0);
                     String agency = getCellValue(row, 1);
                     String businessCenter = getCellValue(row, 2);
@@ -87,10 +85,10 @@ public class ExcelImportService {
 
                     if (!missing.isEmpty()) {
                         saveError(fileName, "Validation", "Champs manquants: " + String.join(", ", missing), rowNum, result);
-                        continue;
+                        continue; // تخطي الصف إذا وجد أي حقل ناقص
                     }
 
-                    // 3. إدارة الـ Entity
+                    // 2. إدارة الـ Entity
                     Optional<Client> existingClient = repository.findById(cli);
                     Client client = existingClient.orElse(new Client());
 
@@ -101,9 +99,8 @@ public class ExcelImportService {
                         result.setSuccessCount(result.getSuccessCount() + 1);
                     }
 
-                    // 4. المابينغ مع تعمير الـ Structure آلياً (المنطق الجديد)
+                    // 3. المابينغ
                     mapRowToClient(row, client, amiableIMP, amiableSDB, commIMP, commSDB);
-
                     clientsToSave.add(client);
 
                     if (clientsToSave.size() >= 50) {
@@ -116,13 +113,10 @@ public class ExcelImportService {
                 }
             }
 
-            if (!clientsToSave.isEmpty()) {
-                repository.saveAll(clientsToSave);
-            }
+            if (!clientsToSave.isEmpty()) repository.saveAll(clientsToSave);
 
             result.setTotalRows(rowNum - 1);
             result.setSuccess(true);
-
         } catch (Exception e) {
             result.setSuccess(false);
             result.getErrors().add("Erreur Critique: " + e.getMessage());
@@ -131,7 +125,6 @@ public class ExcelImportService {
     }
 
     private void mapRowToClient(Row row, Client client, Parameter aIMP, Parameter aSDB, Parameter cIMP, Parameter cSDB) {
-        // مابينغ المعلومات الأساسية (كما هي في كودك)
         client.setAgencyCode(getCellValue(row, 1));
         client.setBusinessCenterCode(getCellValue(row, 2));
         client.setActivityCode(getCellValue(row, 3));
@@ -154,22 +147,25 @@ public class ExcelImportService {
         client.setPostalCode(getCellValue(row, 20));
         client.setCity(getCellValue(row, 21));
 
-        // البيانات المالية
         long daysImpaye = parseLongSafe(row.getCell(22));
         long daysSdb = parseLongSafe(row.getCell(23));
         client.setTotalDaysImpaye(daysImpaye);
         client.setTotalDaysSdb(daysSdb);
-        client.setTotalImpayeAmount(parseBigDecimalSafe(row.getCell(24)));
-        client.setTotalDepassement(parseBigDecimalSafe(row.getCell(25)));
-        client.setTotalSdbAmount(parseBigDecimalSafe(row.getCell(26)));
-        client.setTotalCommitment(parseBigDecimalSafe(row.getCell(27)));
-        client.setOutstanding(parseBigDecimalSafe(row.getCell(28)));
-        client.setTotalAuthorization(parseBigDecimalSafe(row.getCell(29)));
+
+        BigDecimal totalImpaye = parseBigDecimalSafe(row.getCell(24));
+        BigDecimal totalSdb = parseBigDecimalSafe(row.getCell(26));
+        client.setTotalImpayeAmount(totalImpaye);
+        client.setTotalSdbAmount(totalSdb);
+        client.setEngagementGlobal(totalImpaye.add(totalSdb));
+
+        client.setMontantDepassement(parseBigDecimalSafe(row.getCell(25)));
+        client.setEncours(BigDecimal.ZERO);
+        client.setMontantAutorise(parseBigDecimalSafe(row.getCell(29)));
         client.setSectorCommitment(parseBigDecimalSafe(row.getCell(30)));
 
-        client.setFollowUpType(getCellValue(row, 31));
-        client.setContactFlag(getCellValue(row, 32));
-        client.setTraite(getCellValue(row, 33));
+        client.setIsCloture("N");
+        client.setContactFlag("N");
+        client.setTraite("N");
         client.setChequeRestriction(getCellValue(row, 34));
         client.setSectorClass(getCellValue(row, 35));
         client.setIsParticular(getCellValue(row, 36));
@@ -178,7 +174,6 @@ public class ExcelImportService {
         client.setClientGroup(getCellValue(row, 39));
         client.setMotifParticular(getCellValue(row, 41));
 
-        // --- ✅ تعمير الـ Structure بناءً على الأيام والبارامترات ---
         if (daysSdb > 0) {
             if (checkRange(daysSdb, aSDB)) client.setStructure("S003");
             else if (checkRange(daysSdb, cSDB)) client.setStructure("S002");
@@ -189,13 +184,8 @@ public class ExcelImportService {
             else client.setStructure(getCellValue(row, 40));
         }
 
-        // تاريخ الإضافة (كما هو في كودك)
         LocalDateTime excelDate = parseLocalDateTimeSafe(row.getCell(42));
-        if (excelDate != null) {
-            client.setCreatedAt(excelDate);
-        } else if (client.getCreatedAt() == null) {
-            client.setCreatedAt(LocalDateTime.now());
-        }
+        client.setCreatedAt(excelDate != null ? excelDate : LocalDateTime.now());
     }
 
     private boolean checkRange(long days, Parameter param) {
@@ -207,27 +197,13 @@ public class ExcelImportService {
         return (cell == null) ? "" : dataFormatter.formatCellValue(cell).trim();
     }
 
-    private LocalDateTime parseLocalDateTimeSafe(Cell cell) {
-        if (cell == null) return null;
+    private BigDecimal parseBigDecimalSafe(Cell cell) {
         try {
-            if (cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
-                return cell.getDateCellValue().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
-            }
-            String val = dataFormatter.formatCellValue(cell).trim();
-            if (val.isEmpty()) return null;
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss[.SSSSSS]");
-            return LocalDateTime.parse(val, formatter);
-        } catch (Exception e) { return null; }
-    }
-
-    private LocalDate parseDateSafe(Cell cell) {
-        if (cell == null || cell.getCellType() == CellType.BLANK) return null;
-        try {
-            if (cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
-                return cell.getDateCellValue().toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
-            }
-            return null;
-        } catch (Exception e) { return null; }
+            if (cell == null) return BigDecimal.ZERO;
+            if (cell.getCellType() == CellType.NUMERIC) return BigDecimal.valueOf(cell.getNumericCellValue());
+            String val = dataFormatter.formatCellValue(cell).replaceAll("[^\\d.]", "");
+            return val.isEmpty() ? BigDecimal.ZERO : new BigDecimal(val);
+        } catch (Exception e) { return BigDecimal.ZERO; }
     }
 
     private Long parseLongSafe(Cell cell) {
@@ -239,13 +215,20 @@ public class ExcelImportService {
         } catch (Exception e) { return 0L; }
     }
 
-    private BigDecimal parseBigDecimalSafe(Cell cell) {
+    private LocalDate parseDateSafe(Cell cell) {
+        if (cell == null || cell.getCellType() == CellType.BLANK) return null;
+        return (cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) ?
+                cell.getDateCellValue().toInstant().atZone(ZoneId.systemDefault()).toLocalDate() : null;
+    }
+
+    private LocalDateTime parseLocalDateTimeSafe(Cell cell) {
+        if (cell == null) return null;
         try {
-            if (cell == null) return BigDecimal.ZERO;
-            if (cell.getCellType() == CellType.NUMERIC) return BigDecimal.valueOf(cell.getNumericCellValue());
-            String val = dataFormatter.formatCellValue(cell).replaceAll("[^\\d.]", "");
-            return val.isEmpty() ? BigDecimal.ZERO : new BigDecimal(val);
-        } catch (Exception e) { return BigDecimal.ZERO; }
+            if (cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell))
+                return cell.getDateCellValue().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+            String val = dataFormatter.formatCellValue(cell).trim();
+            return val.isEmpty() ? null : LocalDateTime.parse(val, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss[.SSSSSS]"));
+        } catch (Exception e) { return null; }
     }
 
     private boolean isRowEmpty(Row row) {

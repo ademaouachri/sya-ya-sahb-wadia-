@@ -5,6 +5,7 @@ import com.example.backend.DTO.DashboardStats;
 import com.example.backend.DTO.MonthlyEvolutionDTO;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -18,18 +19,19 @@ public interface ClientRepository extends JpaRepository<Client, String> {
 
     Optional<Client> findByCin(String cin);
 
+    // هذه الميثود بقت كما هي لاستخدامها في الـ Dashboard التقليدي
     @Query("""
         SELECT new com.example.backend.DTO.DashboardStats(
             COUNT(DISTINCT c.cli),
             SUM(c.totalImpayeAmount),
             SUM(c.totalSdbAmount),
-            SUM(c.totalCommitment),
-            (SELECT COUNT(*) FROM Report r WHERE r.point = 'Facilité de paiement'),
-            (SELECT COUNT(*) FROM Report r WHERE r.point = 'Promesse de règlement'),
-            SUM(CASE WHEN c.traite = 'Y' THEN 1L ELSE 0L END),
-            SUM(CASE WHEN c.contactFlag = 'Y' THEN 1L ELSE 0L END)
+            SUM(c.engagementGlobal),
+            SUM(c.montantAutorise),
+            SUM(c.encours),
+            SUM(c.montantDepassement)
         )
         FROM Client c
+        LEFT JOIN Report r ON c.cli = r.cli
         WHERE (:agencyCodes IS NULL OR c.agencyCode IN :agencyCodes)
         AND (:zoneCodes IS NULL OR c.zoneCode IN :zoneCodes)
         AND (:regionCodes IS NULL OR c.regionCode IN :regionCodes)
@@ -38,7 +40,7 @@ public interface ClientRepository extends JpaRepository<Client, String> {
         AND (:segmentCodes IS NULL OR c.segmentCode IN :segmentCodes)
         AND (:businessCenterCodes IS NULL OR c.businessCenterCode IN :businessCenterCodes)
         AND (:postalCode IS NULL OR c.postalCode = :postalCode)
-        AND (:dossierType IS NULL OR TRIM(UPPER(c.dossierType)) = TRIM(UPPER(:dossierType)))
+        AND (:isCloture IS NULL OR c.isCloture = :isCloture)
         AND (:structure IS NULL OR TRIM(UPPER(c.structure)) = TRIM(UPPER(:structure)))
         AND (:fullName IS NULL OR UPPER(c.fullName) LIKE UPPER(CONCAT('%', :fullName, '%')))
         AND (:clientGroup IS NULL OR c.clientGroup = :clientGroup)
@@ -54,7 +56,7 @@ public interface ClientRepository extends JpaRepository<Client, String> {
             @Param("segmentCodes") List<String> segmentCodes,
             @Param("businessCenterCodes") List<String> businessCenterCodes,
             @Param("postalCode") String postalCode,
-            @Param("dossierType") String dossierType,
+            @Param("isCloture") String isCloture,
             @Param("structure") String structure,
             @Param("fullName") String fullName,
             @Param("clientGroup") String clientGroup,
@@ -68,8 +70,8 @@ public interface ClientRepository extends JpaRepository<Client, String> {
             MONTH(c.createdAt), 
             SUM(c.totalImpayeAmount), 
             SUM(c.totalSdbAmount), 
-            SUM(c.totalCommitment),
-            SUM(CASE WHEN UPPER(c.dossierType) = 'CLOTURE' THEN c.totalCommitment ELSE 0.0 END)
+            SUM(c.engagementGlobal),
+            SUM(CASE WHEN c.isCloture = 'Y' THEN c.engagementGlobal ELSE 0.0 END)
         )
         FROM Client c
         WHERE (:agencyCodes IS NULL OR c.agencyCode IN :agencyCodes)
@@ -96,7 +98,7 @@ public interface ClientRepository extends JpaRepository<Client, String> {
         AND (:segmentCodes IS NULL OR c.segmentCode IN :segmentCodes)
         AND (:businessCenterCodes IS NULL OR c.businessCenterCode IN :businessCenterCodes)
         AND (:postalCode IS NULL OR c.postalCode = :postalCode)
-        AND (:dossierType IS NULL OR TRIM(UPPER(c.dossierType)) = TRIM(UPPER(:dossierType)))
+        AND (:isCloture IS NULL OR c.isCloture = :isCloture)
         AND (:structure IS NULL OR TRIM(UPPER(c.structure)) = TRIM(UPPER(:structure)))
         AND (:fullName IS NULL OR UPPER(c.fullName) LIKE UPPER(CONCAT('%', :fullName, '%')))
         AND (:clientGroup IS NULL OR c.clientGroup = :clientGroup)
@@ -112,7 +114,7 @@ public interface ClientRepository extends JpaRepository<Client, String> {
             @Param("segmentCodes") List<String> segmentCodes,
             @Param("businessCenterCodes") List<String> businessCenterCodes,
             @Param("postalCode") String postalCode,
-            @Param("dossierType") String dossierType,
+            @Param("isCloture") String isCloture,
             @Param("structure") String structure,
             @Param("fullName") String fullName,
             @Param("clientGroup") String clientGroup,
@@ -120,4 +122,19 @@ public interface ClientRepository extends JpaRepository<Client, String> {
             @Param("startDate") LocalDateTime startDate,
             Sort sort
     );
+
+    @Modifying
+    @Query(value = "UPDATE client SET total_sdb_amount = 0, total_days_sdb = 0 WHERE cli = :cli", nativeQuery = true)
+    void zeroOutSdbForClient(@Param("cli") String cli);
+
+    @Query("""
+        SELECT 
+            COUNT(c), 
+            COALESCE(SUM(c.totalImpayeAmount), 0.0), 
+            COALESCE(SUM(c.totalSdbAmount), 0.0), 
+            COALESCE(SUM(c.engagementGlobal), 0.0)
+        FROM Client c
+        WHERE (:matricule IS NULL OR c.createdBy = :matricule)
+    """)
+    Object getRecouvreurFinancials(@Param("matricule") String matricule);
 }

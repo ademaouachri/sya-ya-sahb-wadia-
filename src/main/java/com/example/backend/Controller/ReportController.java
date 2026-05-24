@@ -21,13 +21,21 @@ public class ReportController {
     }
 
     /**
-     * جلب كل التقارير بصيغة DTO
+     * 🔥 جلب كل التقارير بصيغة DTO مع إمكانية الفلترة بالـ Point والـ Status
      * الـ Service هنا هو اللي يكلم الـ Bank API ويحدث المبالغ والحالة تلقائياً
+     * * أمثلة للطلب م الـ Front أو Postman:
+     * - /api/reports/all (كل شيء)
+     * - /api/reports/all?point=P002 (فلتر حسب الإجراء)
+     * - /api/reports/all?status=EN_RETARD (فلتر حسب الحالة)
+     * - /api/reports/all?point=P003&status=PARTIEL (الفلاتر الزوز مع بعضهم)
      */
     @GetMapping("/all")
-    public ResponseEntity<List<ReportDTO>> getAllReports() {
-        // نعيطوا للميثود اللي تعمل التحقق الآلي مع البنك
-        List<ReportDTO> reports = reportService.getAllReportsWithAutoCheck();
+    public ResponseEntity<List<ReportDTO>> getAllReports(
+            @RequestParam(required = false) String point,
+            @RequestParam(required = false) String status) {
+
+        // نعيطوا للميثود المفلترة والذكية في الـ Service
+        List<ReportDTO> reports = reportService.getAllReportsWithAutoCheck(point, status);
         return ResponseEntity.ok(reports);
     }
 
@@ -36,14 +44,13 @@ public class ReportController {
      */
     @PostMapping("/add")
     public ResponseEntity<Report> createReport(@RequestBody Report report) {
-        // الـ Service باش يتكفل بحساب الحالة الابتدائية وتخزين التقرير
+        // الـ Service باش يتكفل بحساب الحالة الابتدائية وتخزين التقرير والـ Client معاً
         Report savedReport = reportService.saveReport(report);
         return ResponseEntity.ok(savedReport);
     }
 
     /**
      * جلب تقرير واحد بالـ ID
-     * (الميثود هذي صلحناها في الـ Service باش الـ Controller يلقاها)
      */
     @GetMapping("/{id}")
     public ResponseEntity<Report> getReportById(@PathVariable UUID id) {
