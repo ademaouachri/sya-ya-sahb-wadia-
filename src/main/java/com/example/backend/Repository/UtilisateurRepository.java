@@ -18,24 +18,24 @@ public interface UtilisateurRepository extends JpaRepository<Utilisateur, UUID> 
     boolean existsByMatricule(String matricule);
 
     Utilisateur findByMatricule(String matricule);
-   boolean existsByProfilId(UUID id);
+    boolean existsByProfilId(UUID id);
     Optional<Utilisateur> findByActivationToken(String token);
 
 
     List<Utilisateur> findByEnabledFalseAndCreatedAtBefore(LocalDateTime dateTime);
     // ← الـ method الجديدة بـ JOIN FETCH
     @Query("""
-        SELECT u FROM Utilisateur u
-        LEFT JOIN FETCH u.activites
-        LEFT JOIN FETCH u.agences
-        LEFT JOIN FETCH u.zones
-        LEFT JOIN FETCH u.regions
-        LEFT JOIN FETCH u.paliers
-        LEFT JOIN FETCH u.marches
-        LEFT JOIN FETCH u.segments
-        LEFT JOIN FETCH u.centreAffaires
-        WHERE u.email = :email
-    """)
+            SELECT u FROM Utilisateur u
+            LEFT JOIN FETCH u.activites
+            LEFT JOIN FETCH u.agences
+            LEFT JOIN FETCH u.zones
+            LEFT JOIN FETCH u.regions
+            LEFT JOIN FETCH u.paliers
+            LEFT JOIN FETCH u.marches
+            LEFT JOIN FETCH u.segments
+            LEFT JOIN FETCH u.centreAffaires
+            WHERE u.email = :email
+        """)
     Utilisateur findByEmailWithCollections(@Param("email") String email);
 
 

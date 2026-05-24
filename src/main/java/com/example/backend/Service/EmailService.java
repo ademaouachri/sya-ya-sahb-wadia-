@@ -73,4 +73,24 @@ public class EmailService {
         helper.addInline("logoImage", new ClassPathResource("static/logo.png"));
         mailSender.send(message);
     }
+    // أضف هذه الميثود في EmailService.java
+    public void sendReportEmail(String toEmail, String nomAgent, byte[] pdfContent) throws MessagingException {
+        MimeMessage message = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+        helper.setTo(toEmail);
+        helper.setSubject("📊 Rapport Hebdomadaire de Recouvrement");
+
+        String htmlContent = "<html><body>" +
+                "<h2>Bonjour " + nomAgent + ",</h2>" +
+                "<p>Veuillez trouver ci-joint votre rapport hebdomadaire généré automatiquement.</p>" +
+                "<br><p>Cordialement,<br>Votre équipe GTI</p>" +
+                "</body></html>";
+
+        helper.setText(htmlContent, true);
+        // إرفاق ملف الـ PDF
+        helper.addAttachment("Rapport_Hebdomadaire.pdf", new org.springframework.core.io.ByteArrayResource(pdfContent));
+
+        mailSender.send(message);
+    }
 }

@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8" />
+    <title>Rapport d'Activité</title>
+    <style>
+        @page { size: A4; margin: 10mm; }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            font-size: 10px;
+            color: #333;
+            line-height: 1.4;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Header Section */
+        .header {
+            text-align: left;
+            border-bottom: 3px solid #d35400;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .header h2 { color: #2c3e50; margin: 0; font-size: 18px; text-transform: uppercase; }
+        .header .report-title { color: #d35400; font-weight: bold; font-size: 12px; }
+
+        /* Info Box */
+        .info-box {
+            background: #fdfdfd;
+            padding: 15px;
+            border-left: 5px solid #2c3e50;
+            margin-bottom: 20px;
+            border: 1px solid #eee;
+        }
+        .info-box p { margin: 6px 0; font-size: 11px; }
+        .info-box strong { color: #2c3e50; width: 140px; display: inline-block; }
+
+        /* Codes Grid */
+        .codes-section { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #ccc; }
+        .code-row { width: 100%; display: block; margin-bottom: 4px; }
+        .code-item { display: inline-block; width: 49%; font-size: 9px; vertical-align: top; }
+        .code-item b { color: #7f8c8d; width: 90px; display: inline-block; }
+
+        /* Stats Section */
+        .stats-section { width: 100%; margin-bottom: 15px; }
+        .stats-section-title { font-size: 11px; font-weight: bold; color: #2c3e50; text-transform: uppercase; margin-bottom: 5px; text-align: left; border-left: 3px solid #d35400; padding-left: 5px; }
+        .stats-container { width: 100%; text-align: left; margin-bottom: 10px; }
+        .stat-card {
+            display: inline-block;
+            width: 22%;
+            background: #fff;
+            padding: 8px;
+            border: 1px solid #eee;
+            margin-right: 1%;
+            margin-bottom: 5px;
+            border-bottom: 3px solid #2980b9;
+            vertical-align: top;
+            box-sizing: border-box;
+        }
+        .stat-card h3 { margin: 3px 0; color: #2c3e50; font-size: 12px; }
+        .stat-card p { margin: 0; font-size: 8px; color: #7f8c8d; text-transform: uppercase; font-weight: bold; }
+
+        /* Table Design */
+        .data-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .data-table th {
+            background: #2c3e50;
+            color: white;
+            padding: 10px 8px;
+            text-align: left;
+            text-transform: uppercase;
+            font-size: 8px;
+        }
+        .data-table td { border: 1px solid #dee2e6; padding: 8px; vertical-align: top; }
+        .data-table tr:nth-child(even) { background-color: #f9f9f9; }
+
+        /* Badges */
+        .badge {
+            padding: 3px 7px;
+            border-radius: 3px;
+            color: white;
+            font-weight: bold;
+            font-size: 8px;
+            display: inline-block;
+        }
+        .bg-success { background-color: #27ae60; }
+        .bg-danger { background-color: #c0392b; }
+        .bg-primary { background-color: #2980b9; }
+        .bg-warning { background-color: #f39c12; }
+
+        .footer {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            font-size: 8px;
+            text-align: center;
+            color: #95a5a6;
+            border-top: 1px solid #eee;
+            padding-top: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h2>GTI - Groupe Attijariwafa Bank</h2>
+    <span class="report-title">Rapport Hebdomadaire d'Activité de Recouvrement</span>
+    <div style="position: absolute; right: 0; top: 5px; text-align: right; font-size: 9px; color: #7f8c8d;">
+        Généré le: <span th:text="${dateGeneration}"></span>
+    </div>
+</div>
+
+<div class="info-box">
+    <p><strong>Agent Responsable:</strong> <span th:text="${nom}"></span> (<span th:text="${matricule}"></span>)</p>
+    <p><strong>Email:</strong> <span th:text="${email}"></span></p>
+    <p><strong>Structure:</strong> <span th:text="${structure != null ? structure : '-'}"></span> - <span th:text="${libelleProfil != null ? libelleProfil : '-'}"></span></p>
+
+    <div class="codes-section">
+        <div class="code-row">
+            <div class="code-item"><b>Régions:</b> <span th:text="${codesRegions}"></span></div>
+            <div class="code-item"><b>Zones:</b> <span th:text="${codesZones}"></span></div>
+        </div>
+        <div class="code-row">
+            <div class="code-item"><b>Agences:</b> <span th:text="${codesAgences}"></span></div>
+            <div class="code-item"><b>Activités:</b> <span th:text="${codesActivites}"></span></div>
+        </div>
+        <div class="code-row">
+            <div class="code-item"><b>Paliers:</b> <span th:text="${codesPaliers}"></span></div>
+            <div class="code-item"><b>Segments:</b> <span th:text="${codesSegments}"></span></div>
+        </div>
+        <div class="code-row">
+            <div class="code-item"><b>Marchés:</b> <span th:text="${codesMarches}"></span></div>
+            <div class="code-item"><b>Centres Aff.:</b> <span th:text="${codesCentres}"></span></div>
+        </div>
+    </div>
+</div>
+
+<div class="stats-section">
+    <div class="stats-section-title">Statistiques Globales (Depuis le début)</div>
+    <div class="stats-container">
+        <div class="stat-card" style="border-bottom-color: #34495e;">
+            <p>Clients Traités</p>
+            <h3 th:text="${totalClientsGlobal}">0</h3>
+        </div>
+        <div class="stat-card" style="border-bottom-color: #27ae60;">
+            <p>Total Recouvré</p>
+            <h3 th:text="${#numbers.formatDecimal(totalPaidGlobal ?: 0, 1, 'DEFAULT', 3, 'DEFAULT')} + ' TND'">0.000</h3>
+        </div>
+        <div class="stat-card" style="border-bottom-color: #c0392b;">
+            <p>Reste à Recouvrer</p>
+            <h3 th:text="${#numbers.formatDecimal(totalRemainingGlobal ?: 0, 1, 'DEFAULT', 3, 'DEFAULT')} + ' TND'">0.000</h3>
+        </div>
+        <div class="stat-card" style="border-bottom-color: #2980b9;">
+            <p>Total Rapports</p>
+            <h3 th:text="${totalReportsGlobal}">0</h3>
+        </div>
+    </div>
+</div>
+
+<div class="stats-section">
+    <div class="stats-section-title">Statistiques Hebdomadaires (Cette Semaine)</div>
+    <div class="stats-container">
+        <div class="stat-card" style="border-bottom-color: #e67e22;">
+            <p>Clients Semaine</p>
+            <h3 th:text="${totalClientsWeekly}">0</h3>
+        </div>
+        <div class="stat-card" style="border-bottom-color: #2ecc71;">
+            <p>Recouvré Semaine</p>
+            <h3 th:text="${#numbers.formatDecimal(totalPaidWeekly ?: 0, 1, 'DEFAULT', 3, 'DEFAULT')} + ' TND'">0.000</h3>
+        </div>
+        <div class="stat-card" style="border-bottom-color: #9b59b6;">
+            <p>Rapports Semaine</p>
+            <h3 th:text="${totalReportsWeekly}">0</h3>
+        </div>
+    </div>
+</div>
+
+<table class="data-table">
+    <thead>
+    <tr>
+        <th style="width: 15%;">Client (CLI)</th>
+        <th style="width: 30%;">Action &amp; Observation</th>
+        <th style="width: 20%;">Finances (TND)</th>
+        <th style="width: 15%;">Engagement</th>
+        <th style="width: 20%;">Statut</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="report : ${actions}">
+        <td style="font-weight:bold; color: #2c3e50;" th:text="${report.cli}"></td>
+        <td>
+            <div style="font-weight: bold; margin-bottom: 2px;">
+                <span th:if="${report.point == 'P001'}">Visite Terrain</span>
+                <span th:if="${report.point == 'P002'}">Promesse de règlement</span>
+                <span th:if="${report.point == 'P003'}">Facilité de paiement</span>
+                <span th:if="${report.point == 'P004'}">Client injoignable</span>
+                <span th:if="${report.point != 'P001' and report.point != 'P002' and report.point != 'P003' and report.point != 'P004'}" th:text="${report.point}"></span>
+            </div>
+
+            <div th:if="${report.point == 'P001'}" style="font-size: 8px; color: #2980b9; margin-bottom: 3px; font-style: italic;">
+                Lieu: <span th:text="${report.location != null ? report.location : '-'}"></span> |
+                Le: <span th:text="${report.visitDate}"></span> à <span th:text="${report.visitTime}"></span>
+            </div>
+
+            <div style="font-size: 8px; color:#7f8c8d;" th:text="${report.observation}"></div>
+        </td>
+        <td>
+            <th:block th:if="${report.point == 'P001' or report.point == 'P004'}">
+                <span>-</span>
+            </th:block>
+            <th:block th:unless="${report.point == 'P001' or report.point == 'P004'}">
+                <span style="font-weight: bold;"
+                      th:style="${report.status?.name() == 'PARTIEL'} ? 'font-weight: bold; color: #2980b9;' : (${report.status?.name() == 'PAYE'} ? 'font-weight: bold; color: #27ae60;' : 'font-weight: bold; color: #c0392b;')"
+                      th:text="${#numbers.formatDecimal(report.remainingAmount ?: 0, 1, 'DEFAULT', 3, 'DEFAULT')}">
+                </span>
+                <br/>
+                <small style="color: #7f8c8d; font-weight: bold;">
+                    Payé: <span th:text="${#numbers.formatDecimal(report.paidAmount ?: 0, 1, 'DEFAULT', 3, 'DEFAULT')}">0,000</span>
+                </small>
+            </th:block>
+        </td>
+        <td>
+            <th:block th:if="${report.point == 'P001'}">
+                <span>-</span>
+            </th:block>
+            <th:block th:unless="${report.point == 'P001'}">
+                <span th:text="${report.engagementDate != null ? report.engagementDate : '-'}"></span>
+                <div th:if="${report.daysDiff != 0}" style="font-size: 7px; margin-top: 3px;"
+                     th:style="${report.daysDiff &lt; 0} ? 'color:#c0392b' : 'color:#27ae60'"
+                     th:text="${report.daysDiff &lt; 0 ? (report.daysDiff * -1) + ' J de retard' : report.daysDiff + ' J restants'}">
+                </div>
+            </th:block>
+        </td>
+        <td>
+            <th:block th:if="${report.point == 'P001'}">
+                <span>-</span>
+            </th:block>
+            <th:block th:unless="${report.point == 'P001'}">
+                <th:block th:switch="${report.status?.name()}">
+                    <span th:case="'PAYE'" class="badge bg-success">PAYÉ</span>
+                    <span th:case="'EN_RETARD'" class="badge bg-danger">EN RETARD</span>
+                    <span th:case="'PARTIEL'" class="badge bg-primary">PARTIEL</span>
+                    <span th:case="'NON_PAYE'" class="badge bg-warning">NON PAYÉ</span>
+                    <span th:case="*" class="badge" style="background:#bdc3c7;">-</span>
+                </th:block>
+            </th:block>
+        </td>
+    </tr>
+    </tbody>
+</table>
+
+<div class="footer">
+    Document Confidentiel - Attijariwafa Bank - Système Automatisé de Recouvrement
+</div>
+
+</body>
+</html>

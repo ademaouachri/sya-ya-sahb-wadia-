@@ -9,24 +9,31 @@ public class DashboardStats {
     private Long totalDossiers;
     private BigDecimal totalImpayes;
     private BigDecimal totalSdb;
+
+    // الحقول الجديدة اللي حاشتك بيها
+    private BigDecimal totalAutorise;
+    private BigDecimal totalEncours;
     private BigDecimal totalEngagement;
-    private Long facilitePaiementCount;
-    private Long promessePaiementCount;
-    private Long sommation1Count;
-    private Long sommation2Count;
+    private BigDecimal totalDepassement;
+
     private List<MonthlyEvolutionDTO> monthlyEvolution;
 
-    // زيد الـ Constructor هذا بالظبط (8 برامترات)
-    public DashboardStats(Long totalDossiers, BigDecimal totalImpayes, BigDecimal totalSdb,
-                          BigDecimal totalEngagement, Long facilitePaiementCount,
-                          Long promessePaiementCount, Long sommation1Count, Long sommation2Count) {
+    // Constructor الجديد مطابق لـ getGlobalFinancialStats و getDashboardGlobalStats
+    public DashboardStats(Long totalDossiers, Object totalImpayes, Object totalSdb,
+                          Object totalEngagement, Object totalAutorise,
+                          Object totalEncours, Object totalDepassement) {
+
         this.totalDossiers = totalDossiers;
-        this.totalImpayes = totalImpayes != null ? totalImpayes : BigDecimal.ZERO;
-        this.totalSdb = totalSdb != null ? totalSdb : BigDecimal.ZERO;
-        this.totalEngagement = totalEngagement != null ? totalEngagement : BigDecimal.ZERO;
-        this.facilitePaiementCount = facilitePaiementCount;
-        this.promessePaiementCount = promessePaiementCount;
-        this.sommation1Count = sommation1Count;
-        this.sommation2Count = sommation2Count;
+        this.totalImpayes = toBigDecimal(totalImpayes);
+        this.totalSdb = toBigDecimal(totalSdb);
+        this.totalEngagement = toBigDecimal(totalEngagement);
+        this.totalAutorise = toBigDecimal(totalAutorise);
+        this.totalEncours = toBigDecimal(totalEncours);
+        this.totalDepassement = toBigDecimal(totalDepassement);
+    }
+
+    // ميثود مساعدة باش ما نكرروش كود التحويل في كل بلاصة
+    private BigDecimal toBigDecimal(Object value) {
+        return (value instanceof Number) ? BigDecimal.valueOf(((Number) value).doubleValue()) : BigDecimal.ZERO;
     }
 }
